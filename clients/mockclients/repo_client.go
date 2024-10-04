@@ -346,7 +346,7 @@ func (m *MockRepoClient) HasWorkflowHistory(filename string) (bool, error) {
 // HasWorkflowHistory indicates an expected call of HasWorkflowHistory.
 func (mr *MockRepoClientMockRecorder) HasWorkflowHistory(filename interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasWorkflowHistory", reflect.TypeOf((*MockRepoClient)(nil).ListSuccessfulWorkflowRuns), filename)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasWorkflowHistory", reflect.TypeOf((*MockRepoClient)(nil).HasWorkflowHistory), filename)
 }
 
 // ListWebhooks mocks base method.
