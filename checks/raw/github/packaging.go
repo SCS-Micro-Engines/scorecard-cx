@@ -16,6 +16,7 @@ package github
 
 import (
 	"fmt"
+	"github.com/ossf/scorecard/v4/clients"
 	"path/filepath"
 
 	"github.com/rhysd/actionlint"
@@ -32,6 +33,7 @@ func Packaging(c *checker.CheckRequest) (checker.PackagingData, error) {
 	if err != nil {
 		return data, fmt.Errorf("%w", err)
 	}
+
 	if err != nil {
 		return data, fmt.Errorf("RepoClient.ListFiles: %w", err)
 	}
@@ -65,9 +67,18 @@ func Packaging(c *checker.CheckRequest) (checker.PackagingData, error) {
 			continue
 		}
 
-		runs, err := c.RepoClient.ListSuccessfulWorkflowRuns(filepath.Base(fp))
+		workflowFilename := filepath.Base(fp)
+		hasWorkflow, err := c.RepoClient.HasWorkflowHistory(workflowFilename)
 		if err != nil {
-			return data, fmt.Errorf("Client.Actions.ListWorkflowRunsByFileName: %w", err)
+			return data, fmt.Errorf("Client.Actions.HasWorkflowHistory: %w", err)
+		}
+
+		var runs []clients.WorkflowRun
+		if hasWorkflow {
+			runs, err = c.RepoClient.ListSuccessfulWorkflowRuns(workflowFilename)
+			if err != nil {
+				return data, fmt.Errorf("Client.Actions.ListWorkflowRunsByFileName: %w", err)
+			}
 		}
 
 		if len(runs) > 0 {

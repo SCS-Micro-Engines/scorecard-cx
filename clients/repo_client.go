@@ -52,6 +52,7 @@ type RepoClient interface {
 	ListStatuses(ref string) ([]Status, error)
 	ListWebhooks() ([]Webhook, error)
 	ListProgrammingLanguages() ([]Language, error)
+	HasWorkflowHistory(filename string) (bool, error)
 	Search(request SearchRequest) (SearchResponse, error)
 	SearchCommits(request SearchCommitsOptions) ([]Commit, error)
 	Close() error

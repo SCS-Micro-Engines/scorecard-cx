@@ -229,6 +229,8 @@ func (client *localDirClient) ListWebhooks() ([]clients.Webhook, error) {
 	return nil, fmt.Errorf("ListWebhooks: %w", clients.ErrUnsupportedFeature)
 }
 
+// HasWorkflowHistory implements RepoClient.HasWorkflowHistory.
+
 // Search implements RepoClient.Search.
 func (client *localDirClient) Search(request clients.SearchRequest) (clients.SearchResponse, error) {
 	return clients.SearchResponse{}, fmt.Errorf("Search: %w", clients.ErrUnsupportedFeature)
@@ -261,6 +263,11 @@ func (client *localDirClient) GetCreatedAt() (time.Time, error) {
 
 func (client *localDirClient) GetOrgRepoClient(ctx context.Context) (clients.RepoClient, error) {
 	return nil, fmt.Errorf("GetOrgRepoClient: %w", clients.ErrUnsupportedFeature)
+}
+
+// HasWorkflowHistory implements RepoClient.HasWorkflowHistory.
+func (client *localDirClient) HasWorkflowHistory(filename string) (bool, error) {
+	return false, fmt.Errorf("HasWorkflowHistory: %w", clients.ErrUnsupportedFeature)
 }
 
 // CreateLocalDirClient returns a client which implements RepoClient interface.

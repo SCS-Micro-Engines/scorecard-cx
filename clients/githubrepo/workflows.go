@@ -17,6 +17,7 @@ package githubrepo
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/google/go-github/v53/github"
@@ -34,6 +35,26 @@ type workflowsHandler struct {
 func (handler *workflowsHandler) init(ctx context.Context, repourl *repoURL) {
 	handler.ctx = ctx
 	handler.repourl = repourl
+}
+
+func (handler *workflowsHandler) hasWorkflowHistory(filename string) (bool, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/actions/workflows/%s",
+		handler.repourl.owner, handler.repourl.repo, filename)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return true, nil
+	case http.StatusNotFound:
+		return false, nil
+	default:
+		return false, fmt.Errorf("received unexpected status code: %d", resp.StatusCode)
+	}
 }
 
 func (handler *workflowsHandler) listSuccessfulWorkflowRuns(filename string) ([]clients.WorkflowRun, error) {

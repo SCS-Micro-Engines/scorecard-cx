@@ -272,6 +272,11 @@ func (client *Client) SearchCommits(request clients.SearchCommitsOptions) ([]cli
 	return client.searchCommits.search(request)
 }
 
+// HasWorkflowHistory implements RepoClient.HasWorkflowHistory.
+func (client *Client) HasWorkflowHistory(filename string) (bool, error) {
+	return false, fmt.Errorf("HasWorkflowHistory: %w", clients.ErrUnsupportedFeature)
+}
+
 func (client *Client) Close() error {
 	return nil
 }

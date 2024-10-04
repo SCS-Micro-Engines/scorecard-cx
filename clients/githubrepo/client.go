@@ -247,6 +247,11 @@ func (client *Client) ListLicenses() ([]clients.License, error) {
 	return client.licenses.listLicenses()
 }
 
+// HasWorkflowHistory implements RepoClient.HasWorkflowHistory.
+func (client *Client) HasWorkflowHistory(filename string) (bool, error) {
+	return client.workflows.hasWorkflowHistory(filename)
+}
+
 // Search implements RepoClient.Search.
 func (client *Client) Search(request clients.SearchRequest) (clients.SearchResponse, error) {
 	return client.search.search(request)

@@ -271,3 +271,8 @@ func (c *client) ListLicenses() ([]clients.License, error) {
 func (c *client) GetCreatedAt() (time.Time, error) {
 	return time.Time{}, fmt.Errorf("GetCreatedAt: %w", clients.ErrUnsupportedFeature)
 }
+
+// HasWorkflowHistory implements RepoClient.HasWorkflowHistory.
+func (c *client) HasWorkflowHistory(filename string) (bool, error) {
+	return false, fmt.Errorf("HasWorkflowHistory: %w", clients.ErrUnsupportedFeature)
+}
