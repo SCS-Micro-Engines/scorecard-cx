@@ -1,6 +1,7 @@
 name: Go Security Autofix
 
 on:
+  push: # to remove
   schedule:
     - cron: '0 6 * * *'
   workflow_dispatch:
