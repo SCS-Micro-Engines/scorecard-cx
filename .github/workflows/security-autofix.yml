@@ -1,4 +1,4 @@
-name: Security Autofix
+name: Go Security Autofix
 
 on:
   schedule:
@@ -6,14 +6,126 @@ on:
   workflow_dispatch:
 
 jobs:
-  security-autofix:
-    uses: SCS-Micro-Engines/common-workflows/.github/workflows/autofix-entrypoint.yml@simplify-autofix-workflow
-    with:
-      project_type: go
-      dockerfile_path: ./Dockerfile
-      go_mod_path: ./go.mod
-      base_branch: main
-    secrets:
+  autofix:
+    runs-on: ubuntu-latest
+    env:
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
-      GITHUB_APP_PRIVATE_KEY: ${{ secrets.APOLLO_PRIVATE_KEY }}
-      GITHUB_APP_ID: ${{ vars.APOLLO_APP_ID }}
+      GITHUB_APP_ID: ${{ secrets.GITHUB_APP_ID }}
+      GITHUB_APP_PRIVATE_KEY: ${{ secrets.GITHUB_APP_PRIVATE_KEY }}
+      PR_BRANCH: chore/security-autofix
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Bump go.mod to latest Go
+        shell: bash
+        run: |
+          set -euo pipefail
+          file="go.mod"
+          [ -f "$file" ] || { echo "go.mod not found"; exit 0; }
+
+          latest=$(curl -fsSL https://go.dev/VERSION?m=text | head -n1 | sed 's/^go//')
+          current=$(grep '^go ' "$file" | awk '{print $2}')
+
+          if [ -z "$latest" ]; then
+            echo "could not determine latest Go version from go.dev, skipping"
+            exit 0
+          fi
+
+          if [ "$current" != "$latest" ]; then
+            echo "Updating go.mod go directive $current -> $latest"
+            go mod edit -go="$latest"
+            go mod tidy
+          else
+            echo "go.mod already on latest Go ($current)"
+          fi
+
+      - name: Trivy FS
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: json
+          output: trivy-fs.json
+          ignore-unfixed: true
+          vuln-type: library
+          severity: "CRITICAL,HIGH,MEDIUM,LOW,UNKNOWN"
+          exit-code: "0"
+
+      - name: Autofix Go deps from Trivy report
+        shell: bash
+        run: |
+          set -euo pipefail
+          jf="trivy-fs.json"
+          [ -s "$jf" ] || { echo "no trivy output"; exit 0; }
+
+          jq -r '
+            .Results[]? | .Vulnerabilities[]?
+            | select(.PkgName != null and .FixedVersion != null and .FixedVersion != "")
+            | [.PkgName, (.FixedVersion // ""), (.InstalledVersion // "")]
+            | @tsv
+          ' "$jf" | sort -u > dep_updates.txt || true
+
+          if [ ! -s dep_updates.txt ]; then
+            echo "No deps to update."
+            exit 0
+          fi
+
+          while IFS=$'\t' read -r mod fixed installed; do
+            [ -n "$mod" ] && [ -n "$fixed" ] || continue
+            if [[ "$installed" == v* && "$fixed" != v* ]]; then
+              fixed="v$fixed"
+            fi
+            echo "go get ${mod}@${fixed}" && go get "${mod}@${fixed}" || true
+          done < dep_updates.txt
+
+          go mod tidy
+
+      - name: Collect changed files
+        id: collect
+        shell: bash
+        run: |
+          set -euo pipefail
+          wanted=""
+          for f in go.mod go.sum tools/go.mod tools/go.sum; do
+            [ -f "$f" ] || continue
+            if ! git diff --quiet -- "$f"; then
+              wanted="${wanted}${f}"$'\n'
+            fi
+          done
+          echo "paths<<EOF" >> "$GITHUB_OUTPUT"
+          printf "%s" "$wanted" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Mint GitHub App installation token
+        id: app-token
+        if: ${{ steps.collect.outputs.paths != '' }}
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ env.GITHUB_APP_ID }}
+          private-key: ${{ env.GITHUB_APP_PRIVATE_KEY }}
+
+      - name: Create / Update PR
+        if: ${{ steps.collect.outputs.paths != '' }}
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          branch: ${{ env.PR_BRANCH }}
+          base: main
+          title: "AST-000-Autofix: Go deps"
+          body: |
+            This pull request was created automatically by the Security Autofix workflow.
+            It can be triggered by the nightly schedule or manually.
+          add-paths: ${{ steps.collect.outputs.paths }}
+          commit-message: "chore(autofix): bump Go and fix vulns"
+          labels: security,autofix
+          draft: true
+          committer: "CE Bot <cebot@checkmarx.com>"
+          author: "CE Bot <cebot@checkmarx.com>"
