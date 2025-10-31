@@ -1,6 +1,7 @@
 name: Go Security Autofix
 
 on:
+  push: # to remove
   schedule:
     - cron: '0 6 * * *'
   workflow_dispatch:
@@ -13,7 +14,7 @@ jobs:
   autofix:
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      GH_TOKEN: ${{ secrets.GH_AUTOFIX_TOKEN }}
       PR_BRANCH: chore/security-autofix
 
     steps:
