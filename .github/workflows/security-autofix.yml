@@ -1,6 +1,7 @@
 name: Go Security Autofix
 
 on:
+  push: # to remove
   schedule:
     - cron: '0 6 * * *'
   workflow_dispatch:
@@ -20,75 +21,136 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          check-latest: true
-
-      - name: Bump go.mod to latest Go
+      - name: Detect latest Go
+        id: detect-go
         shell: bash
         run: |
           set -euo pipefail
-          file="go.mod"
-          [ -f "$file" ] || { echo "go.mod not found"; exit 0; }
-
           latest=$(curl -fsSL https://go.dev/VERSION?m=text | head -n1 | sed 's/^go//')
-          current=$(grep '^go ' "$file" | awk '{print $2}')
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
 
-          if [ -z "$latest" ]; then
-            echo "could not determine latest Go version from go.dev, skipping"
-            exit 0
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.detect-go.outputs.latest }}
+          check-latest: true
+
+      - name: Bump root go.mod
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f go.mod ]; then
+            latest="${{ steps.detect-go.outputs.latest }}"
+            current=$(grep '^go ' go.mod | awk '{print $2}')
+            if [ "$current" != "$latest" ]; then
+              echo "root: $current -> $latest"
+              go mod edit -go="$latest"
+              go mod tidy
+            else
+              echo "root already $current"
+            fi
           fi
 
-          if [ "$current" != "$latest" ]; then
-            echo "Updating go.mod go directive $current -> $latest"
-            go mod edit -go="$latest"
-            go mod tidy
+      - name: Bump tools/go.mod
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f tools/go.mod ]; then
+            latest="${{ steps.detect-go.outputs.latest }}"
+            current=$(grep '^go ' tools/go.mod | awk '{print $2}')
+            if [ "$current" != "$latest" ]; then
+              echo "tools: $current -> $latest"
+              (cd tools && go mod edit -go="$latest" && go mod tidy)
+            else
+              echo "tools already $current"
+            fi
           else
-            echo "go.mod already on latest Go ($current)"
+            echo "no tools/go.mod, skipping"
           fi
 
-      - name: Trivy FS
+      - name: Trivy FS (root)
         uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8
+        env:
+          TRIVY_CACHE_DIR: /tmp/trivycache
         with:
           scan-type: fs
           scan-ref: .
+          scanners: vuln
           format: json
-          output: trivy-fs.json
+          output: trivy-root.json
           ignore-unfixed: true
           vuln-type: library
           severity: "CRITICAL,HIGH,MEDIUM,LOW,UNKNOWN"
           exit-code: "0"
 
-      - name: Autofix Go deps from Trivy report
+      - name: Trivy FS (tools)
+        if: ${{ hashFiles('tools/go.mod') != '' }}
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8
+        env:
+          TRIVY_CACHE_DIR: /tmp/trivycache-tools
+        with:
+          scan-type: fs
+          scan-ref: ./tools
+          scanners: vuln
+          format: json
+          output: trivy-tools.json
+          ignore-unfixed: true
+          vuln-type: library
+          severity: "CRITICAL,HIGH,MEDIUM,LOW,UNKNOWN"
+          exit-code: "0"
+
+      - name: Autofix Go deps from Trivy reports
         shell: bash
         run: |
           set -euo pipefail
-          jf="trivy-fs.json"
-          [ -s "$jf" ] || { echo "no trivy output"; exit 0; }
 
-          jq -r '
-            .Results[]? | .Vulnerabilities[]?
-            | select(.PkgName != null and .FixedVersion != null and .FixedVersion != "")
-            | [.PkgName, (.FixedVersion // ""), (.InstalledVersion // "")]
-            | @tsv
-          ' "$jf" | sort -u > dep_updates.txt || true
+          gather() {
+            local jf="$1"
+            local out="$2"
+            if [ -s "$jf" ]; then
+              jq -r '
+                .Results[]? | .Vulnerabilities[]?
+                | select(.PkgName != null and .FixedVersion != null and .FixedVersion != "")
+                | [.PkgName, (.FixedVersion // ""), (.InstalledVersion // "")]
+                | @tsv
+              ' "$jf" >> "$out" || true
+            fi
+          }
 
-          if [ ! -s dep_updates.txt ]; then
+          depfile=$(mktemp /tmp/dep_updates.XXXXXX)
+          gather trivy-root.json "$depfile"
+          gather trivy-tools.json "$depfile"
+
+          sort -u -o "$depfile" "$depfile" || true
+
+          if [ ! -s "$depfile" ]; then
             echo "No deps to update."
             exit 0
           fi
 
-          while IFS=$'\t' read -r mod fixed installed; do
-            [ -n "$mod" ] && [ -n "$fixed" ] || continue
-            if [[ "$installed" == v* && "$fixed" != v* ]]; then
-              fixed="v$fixed"
-            fi
-            echo "go get ${mod}@${fixed}" && go get "${mod}@${fixed}" || true
-          done < dep_updates.txt
+          # update root
+          if [ -f go.mod ]; then
+            while IFS=$'\t' read -r mod fixed installed; do
+              [ -n "$mod" ] && [ -n "$fixed" ] || continue
+              if [[ "$installed" == v* && "$fixed" != v* ]]; then
+                fixed="v$fixed"
+              fi
+              echo "[root] go get ${mod}@${fixed}" && go get "${mod}@${fixed}" || true
+            done < "$depfile"
+            go mod tidy
+          fi
 
-          go mod tidy
+          # update tools
+          if [ -f tools/go.mod ]; then
+            while IFS=$'\t' read -r mod fixed installed; do
+              [ -n "$mod" ] && [ -n "$fixed" ] || continue
+              if [[ "$installed" == v* && "$fixed" != v* ]]; then
+                fixed="v$fixed"
+              fi
+              echo "[tools] go get ${mod}@${fixed}" && (cd tools && go get "${mod}@${fixed}") || true
+            done < "$depfile"
+            (cd tools && go mod tidy)
+          fi
 
       - name: Collect changed files
         id: collect
