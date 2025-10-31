@@ -1,0 +1,20 @@
+name: Security Autofix
+
+on:
+  push:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  security-autofix:
+    uses: SCS-Micro-Engines/common-workflows/.github/workflows/autofix-entrypoint.yml@simplify-autofix-workflow
+    with:
+      project_type: go
+      dockerfile_path: ./Dockerfile
+      go_mod_path: ./go.mod
+      base_branch: main
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      GITHUB_APP_PRIVATE_KEY: ${{ secrets.APOLLO_PRIVATE_KEY }}
+      GITHUB_APP_ID: ${{ vars.APOLLO_APP_ID }}
