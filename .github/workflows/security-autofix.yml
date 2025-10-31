@@ -5,13 +5,15 @@ on:
     - cron: '0 6 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   autofix:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
-      GITHUB_APP_ID: ${{ secrets.GITHUB_APP_ID }}
-      GITHUB_APP_PRIVATE_KEY: ${{ secrets.GITHUB_APP_PRIVATE_KEY }}
       PR_BRANCH: chore/security-autofix
 
     steps:
@@ -104,19 +106,11 @@ jobs:
           printf "%s" "$wanted" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-      - name: Mint GitHub App installation token
-        id: app-token
-        if: ${{ steps.collect.outputs.paths != '' }}
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ env.GITHUB_APP_ID }}
-          private-key: ${{ env.GITHUB_APP_PRIVATE_KEY }}
-
       - name: Create / Update PR
         if: ${{ steps.collect.outputs.paths != '' }}
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ steps.app-token.outputs.token }}
+          token: ${{ env.GH_TOKEN }}
           branch: ${{ env.PR_BRANCH }}
           base: main
           title: "AST-000-Autofix: Go deps"
