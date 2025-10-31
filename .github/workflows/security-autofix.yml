@@ -1,6 +1,7 @@
 name: Go Security Autofix
 
 on:
+  push:
   schedule:
     - cron: '0 6 * * *'
   workflow_dispatch:
@@ -67,7 +68,7 @@ jobs:
             echo "no tools/go.mod, skipping"
           fi
 
-      - name: Trivy FS (root)
+      - name: Trivy FS
         uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8
         env:
           TRIVY_CACHE_DIR: /tmp/trivycache
@@ -76,80 +77,66 @@ jobs:
           scan-ref: .
           scanners: vuln
           format: json
-          output: trivy-root.json
+          output: trivy-fs.json
           ignore-unfixed: true
           vuln-type: library
           severity: "CRITICAL,HIGH,MEDIUM,LOW,UNKNOWN"
           exit-code: "0"
 
-      - name: Trivy FS (tools)
-        if: ${{ hashFiles('tools/go.mod') != '' }}
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8
-        env:
-          TRIVY_CACHE_DIR: /tmp/trivycache-tools
-        with:
-          scan-type: fs
-          scan-ref: ./tools
-          scanners: vuln
-          format: json
-          output: trivy-tools.json
-          ignore-unfixed: true
-          vuln-type: library
-          severity: "CRITICAL,HIGH,MEDIUM,LOW,UNKNOWN"
-          exit-code: "0"
-
-      - name: Autofix Go deps from Trivy reports
+      - name: Autofix Go deps from Trivy report (per target)
         shell: bash
         run: |
           set -euo pipefail
-
-          gather() {
-            local jf="$1"
-            local out="$2"
-            if [ -s "$jf" ]; then
-              jq -r '
-                .Results[]? | .Vulnerabilities[]?
-                | select(.PkgName != null and .FixedVersion != null and .FixedVersion != "")
-                | [.PkgName, (.FixedVersion // ""), (.InstalledVersion // "")]
-                | @tsv
-              ' "$jf" >> "$out" || true
-            fi
-          }
+          jf="trivy-fs.json"
+          [ -s "$jf" ] || { echo "no trivy output"; exit 0; }
 
           depfile=$(mktemp /tmp/dep_updates.XXXXXX)
-          gather trivy-root.json "$depfile"
-          gather trivy-tools.json "$depfile"
 
-          sort -u -o "$depfile" "$depfile" || true
+          # emit: target, module, fixed, installed
+          jq -r '
+            .Results[]? as $r
+            | ($r.Target // "") as $t
+            | $r.Vulnerabilities[]?
+            | select(.PkgName != null and .FixedVersion != null and .FixedVersion != "")
+            | [$t, .PkgName, (.FixedVersion // ""), (.InstalledVersion // "")]
+            | @tsv
+          ' "$jf" | sort -u > "$depfile" || true
 
           if [ ! -s "$depfile" ]; then
             echo "No deps to update."
             exit 0
           fi
 
-          # update root
-          if [ -f go.mod ]; then
-            while IFS=$'\t' read -r mod fixed installed; do
-              [ -n "$mod" ] && [ -n "$fixed" ] || continue
-              if [[ "$installed" == v* && "$fixed" != v* ]]; then
-                fixed="v$fixed"
-              fi
-              echo "[root] go get ${mod}@${fixed}" && go get "${mod}@${fixed}" || true
-            done < "$depfile"
-            go mod tidy
-          fi
+          # apply per target
+          while IFS=$'\t' read -r target mod fixed installed; do
+            [ -n "$mod" ] && [ -n "$fixed" ] || continue
+            if [[ "$installed" == v* && "$fixed" != v* ]]; then
+              fixed="v$fixed"
+            fi
 
-          # update tools
-          if [ -f tools/go.mod ]; then
-            while IFS=$'\t' read -r mod fixed installed; do
-              [ -n "$mod" ] && [ -n "$fixed" ] || continue
-              if [[ "$installed" == v* && "$fixed" != v* ]]; then
-                fixed="v$fixed"
-              fi
-              echo "[tools] go get ${mod}@${fixed}" && (cd tools && go get "${mod}@${fixed}") || true
-            done < "$depfile"
-            (cd tools && go mod tidy)
-          fi
+            case "$target" in
+              tools/*|tools/go.mod)
+                if [ -f tools/go.mod ]; then
+                  echo "[tools] go get ${mod}@${fixed}"
+                  (cd tools && go get "${mod}@${fixed}") || true
+                else
+                  echo "[tools] target reported but tools/go.mod not found, skipping"
+                fi
+                ;;
+              *)
+                if [ -f go.mod ]; then
+                  echo "[root] go get ${mod}@${fixed}"
+                  go get "${mod}@${fixed}" || true
+                else
+                  echo "[root] go.mod not found, skipping"
+                fi
+                ;;
+            esac
+          done < "$depfile"
+
+          # tidy both, harmless if no change
+          [ -f go.mod ] && go mod tidy
+          [ -f tools/go.mod ] && (cd tools && go mod tidy)
 
       - name: Collect changed files
         id: collect
