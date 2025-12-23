@@ -167,4 +167,3 @@ jobs:
           add-paths: ${{ steps.collect.outputs.paths }}
           commit-message: "chore(autofix): bump Go and fix vulns"
           labels: security,autofix
-          draft: true
