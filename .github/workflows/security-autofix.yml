@@ -1,0 +1,169 @@
+name: Go Security Autofix
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  autofix:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GH_AUTOFIX_TOKEN }}
+      PR_BRANCH: chore/security-autofix
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect latest Go
+        id: detect-go
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest=$(curl -fsSL https://go.dev/VERSION?m=text | head -n1 | sed 's/^go//')
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.detect-go.outputs.latest }}
+          check-latest: true
+
+      - name: Bump root go.mod
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f go.mod ]; then
+            latest="${{ steps.detect-go.outputs.latest }}"
+            current=$(grep '^go ' go.mod | awk '{print $2}')
+            if [ "$current" != "$latest" ]; then
+              echo "root: $current -> $latest"
+              go mod edit -go="$latest"
+              go mod tidy
+            else
+              echo "root already $current"
+            fi
+          fi
+
+      - name: Bump tools/go.mod
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f tools/go.mod ]; then
+            latest="${{ steps.detect-go.outputs.latest }}"
+            current=$(grep '^go ' tools/go.mod | awk '{print $2}')
+            if [ "$current" != "$latest" ]; then
+              echo "tools: $current -> $latest"
+              (cd tools && go mod edit -go="$latest" && go mod tidy)
+            else
+              echo "tools already $current"
+            fi
+          else
+            echo "no tools/go.mod, skipping"
+          fi
+
+      - name: Trivy FS
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8
+        env:
+          TRIVY_CACHE_DIR: /tmp/trivycache
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          format: json
+          output: trivy-fs.json
+          ignore-unfixed: true
+          vuln-type: library
+          severity: "CRITICAL,HIGH,MEDIUM,LOW,UNKNOWN"
+          exit-code: "0"
+
+      - name: Autofix Go deps from Trivy report (per target)
+        shell: bash
+        run: |
+          set -euo pipefail
+          jf="trivy-fs.json"
+          [ -s "$jf" ] || { echo "no trivy output"; exit 0; }
+
+          depfile=$(mktemp /tmp/dep_updates.XXXXXX)
+
+          # emit: target, module, fixed, installed
+          jq -r '
+            .Results[]? as $r
+            | ($r.Target // "") as $t
+            | $r.Vulnerabilities[]?
+            | select(.PkgName != null and .FixedVersion != null and .FixedVersion != "")
+            | [$t, .PkgName, (.FixedVersion // ""), (.InstalledVersion // "")]
+            | @tsv
+          ' "$jf" | sort -u > "$depfile" || true
+
+          if [ ! -s "$depfile" ]; then
+            echo "No deps to update."
+            exit 0
+          fi
+
+          # apply per target
+          while IFS=$'\t' read -r target mod fixed installed; do
+            [ -n "$mod" ] && [ -n "$fixed" ] || continue
+            if [[ "$installed" == v* && "$fixed" != v* ]]; then
+              fixed="v$fixed"
+            fi
+
+            case "$target" in
+              tools/*|tools/go.mod)
+                if [ -f tools/go.mod ]; then
+                  echo "[tools] go get ${mod}@${fixed}"
+                  (cd tools && go get "${mod}@${fixed}") || true
+                else
+                  echo "[tools] target reported but tools/go.mod not found, skipping"
+                fi
+                ;;
+              *)
+                if [ -f go.mod ]; then
+                  echo "[root] go get ${mod}@${fixed}"
+                  go get "${mod}@${fixed}" || true
+                else
+                  echo "[root] go.mod not found, skipping"
+                fi
+                ;;
+            esac
+          done < "$depfile"
+
+          # tidy both, harmless if no change
+          [ -f go.mod ] && go mod tidy
+          [ -f tools/go.mod ] && (cd tools && go mod tidy)
+
+      - name: Collect changed files
+        id: collect
+        shell: bash
+        run: |
+          set -euo pipefail
+          wanted=""
+          for f in go.mod go.sum tools/go.mod tools/go.sum; do
+            [ -f "$f" ] || continue
+            if ! git diff --quiet -- "$f"; then
+              wanted="${wanted}${f}"$'\n'
+            fi
+          done
+          echo "paths<<EOF" >> "$GITHUB_OUTPUT"
+          printf "%s" "$wanted" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Create / Update PR
+        if: ${{ steps.collect.outputs.paths != '' }}
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ env.GH_TOKEN }}
+          branch: ${{ env.PR_BRANCH }}
+          base: main
+          title: "AST-000-Autofix: Go deps"
+          body: |
+            This pull request was created automatically by the Security Autofix workflow.
+            It can be triggered by the nightly schedule or manually.
+          add-paths: ${{ steps.collect.outputs.paths }}
+          commit-message: "chore(autofix): bump Go and fix vulns"
+          labels: security,autofix
