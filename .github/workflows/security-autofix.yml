@@ -168,5 +168,3 @@ jobs:
           commit-message: "chore(autofix): bump Go and fix vulns"
           labels: security,autofix
           draft: true
-          committer: "CE Bot <cebot@checkmarx.com>"
-          author: "CE Bot <cebot@checkmarx.com>"
