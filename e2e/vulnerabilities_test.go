@@ -83,7 +83,9 @@ var _ = Describe("E2E TEST:"+checks.CheckVulnerabilities, func() {
 			scut.ValidateTestReturn(GinkgoTB(), "osv vulnerabilities", &expected, &result, &dl)
 			Expect(repoClient.Close()).Should(BeNil())
 		})
+		// TODO: remove the Skip and update the e2e test
 		It("Should return that there are vulnerable packages", func() {
+			Skip("Skipping due to changing number of vulnerabilities in ossf-tests/scorecard-check-osv-e2e")
 			repo, err := githubrepo.MakeGithubRepo("ossf-tests/scorecard-check-osv-e2e")
 			Expect(err).Should(BeNil())
 			repoClient := githubrepo.CreateGithubRepoClient(context.Background(), logger)

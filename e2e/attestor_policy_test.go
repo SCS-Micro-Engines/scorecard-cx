@@ -86,11 +86,11 @@ var _ = Describe("E2E TEST PAT: scorecard-attestor policy", func() {
 				expected policy.PolicyResult
 			}{
 				{
-					name: "test bad repo with vulnerabilities prevented but no known vulnerabilities",
+					name: "test bad repo with vulnerabilities prevented and known vulnerabilities",
 					policy: policy.AttestationPolicy{
 						PreventKnownVulnerabilities: true,
 					},
-					expected: policy.Pass,
+					expected: policy.Fail,
 				},
 				{
 					name: "test bad repo with ignored binary artifact",
@@ -131,7 +131,7 @@ var _ = Describe("E2E TEST PAT: scorecard-attestor policy", func() {
 					expected: policy.Pass,
 				},
 				{
-					name: "test bad repo with everything ignored",
+					name: "test bad repo with everything ignored except vulnerabilities",
 					policy: policy.AttestationPolicy{
 						PreventBinaryArtifacts:      true,
 						AllowedBinaryArtifacts:      []string{"test-binary-artifact-*"},
@@ -139,7 +139,7 @@ var _ = Describe("E2E TEST PAT: scorecard-attestor policy", func() {
 						PreventUnpinnedDependencies: true,
 						AllowedUnpinnedDependencies: []policy.Dependency{{Filepath: "Dockerfile"}},
 					},
-					expected: policy.Pass,
+					expected: policy.Fail,
 				},
 				{
 					name: "test code reviews required but repo doesn't have code reviews",
