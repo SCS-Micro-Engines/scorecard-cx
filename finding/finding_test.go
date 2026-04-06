@@ -169,7 +169,7 @@ func Test_FromBytes(t *testing.T) {
 
 			content, err := os.ReadFile(tt.path)
 			if err != nil {
-				t.Fatalf(err.Error())
+				t.Fatalf("%s", err.Error())
 			}
 
 			r, err := FromBytes(content, tt.id)

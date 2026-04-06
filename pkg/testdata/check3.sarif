@@ -102,6 +102,7 @@
          "results": [
             {
                "ruleId": "CheckNameID",
+               "kind": "fail",
                "ruleIndex": 0,
                "message": {
                   "text": "score is 0: warn message\nClick Remediation section below to solve this issue"
@@ -126,6 +127,7 @@
             },
             {
                "ruleId": "CheckName2ID",
+               "kind": "fail",
                "ruleIndex": 1,
                "message": {
                   "text": "score is 0: warn message\nClick Remediation section below to solve this issue"
@@ -141,6 +143,34 @@
                         },
                         "artifactLocation": {
                            "uri": "src/doc.txt",
+                           "uriBaseId": "%SRCROOT%"
+                        }
+                     },
+                     "message": {
+                        "text": "warn message"
+                     }
+                  }
+               ]
+            },
+            {
+               "ruleId": "CheckName3ID",
+               "kind": "open",
+               "ruleIndex": 2,
+               "message": {
+                  "text": "score is -1: warn message\nClick Remediation section below to solve this issue"
+               },
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "region": {
+                           "startLine": 3,
+                           "endLine": 3,
+                           "snippet": {
+                              "text": "if (bad) {BUG2();}"
+                           }
+                        },
+                        "artifactLocation": {
+                           "uri": "some/path.py",
                            "uriBaseId": "%SRCROOT%"
                         }
                      },

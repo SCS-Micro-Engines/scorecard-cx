@@ -95,7 +95,7 @@ func TestGithubWorkflowPinning(t *testing.T) {
 
 			_, err = validateGitHubActionWorkflow(p, content, &r)
 			if !errCmp(err, tt.err) {
-				t.Errorf(cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
+				t.Errorf("%s", cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
 			}
 
 			if err != nil {
@@ -250,7 +250,7 @@ func TestNonGithubWorkflowPinning(t *testing.T) {
 
 			_, err = validateGitHubActionWorkflow(p, content, &r)
 			if !errCmp(err, tt.err) {
-				t.Errorf(cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
+				t.Errorf("%s", cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
 			}
 
 			if err != nil {
@@ -306,7 +306,7 @@ func TestGithubWorkflowPkgManagerPinning(t *testing.T) {
 
 			_, err = validateGitHubWorkflowIsFreeOfInsecureDownloads(p, content, &r)
 			if !errCmp(err, tt.err) {
-				t.Errorf(cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
+				t.Errorf("%s", cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
 			}
 
 			if err != nil {
@@ -399,7 +399,7 @@ func TestDockerfilePinning(t *testing.T) {
 			var r checker.PinningDependenciesData
 			_, err = validateDockerfilesPinning(filepath.Join("testdata", tt.filename), content, &r)
 			if !errCmp(err, tt.err) {
-				t.Errorf(cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
+				t.Errorf("%s", cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
 			}
 
 			if err != nil {
@@ -657,7 +657,7 @@ func TestDockerfileInsecureDownloadsBrokenCommands(t *testing.T) {
 			var r checker.PinningDependenciesData
 			_, err = validateDockerfileInsecureDownloads(tt.filename, content, &r)
 			if !strings.Contains(err.Error(), tt.err.Error()) {
-				t.Errorf(cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
+				t.Errorf("%s", cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
 			}
 		})
 	}
@@ -1259,7 +1259,7 @@ func TestDockerfilePinningWithoutHash(t *testing.T) {
 			var r checker.PinningDependenciesData
 			_, err = validateDockerfilesPinning(tt.filename, content, &r)
 			if !errCmp(err, tt.err) {
-				t.Errorf(cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
+				t.Errorf("%s", cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
 			}
 
 			if err != nil {
@@ -1371,7 +1371,7 @@ func TestDockerfileScriptDownload(t *testing.T) {
 			var r checker.PinningDependenciesData
 			_, err = validateDockerfileInsecureDownloads(tt.filename, content, &r)
 			if !errCmp(err, tt.err) {
-				t.Errorf(cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
+				t.Errorf("%s", cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
 			}
 
 			if err != nil {
@@ -1425,7 +1425,7 @@ func TestDockerfileScriptDownloadInfo(t *testing.T) {
 			var r checker.PinningDependenciesData
 			_, err = validateDockerfileInsecureDownloads(tt.filename, content, &r)
 			if !errCmp(err, tt.err) {
-				t.Errorf(cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
+				t.Errorf("%s", cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
 			}
 
 			if err != nil {
@@ -1508,7 +1508,7 @@ func TestShellScriptDownload(t *testing.T) {
 			_, err = validateShellScriptIsFreeOfInsecureDownloads(tt.filename, content, &r)
 
 			if !errCmp(err, tt.err) {
-				t.Errorf(cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
+				t.Errorf("%s", cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
 			}
 
 			if err != nil {
@@ -1562,7 +1562,7 @@ func TestShellScriptDownloadPinned(t *testing.T) {
 			_, err = validateShellScriptIsFreeOfInsecureDownloads(tt.filename, content, &r)
 
 			if !errCmp(err, tt.err) {
-				t.Errorf(cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
+				t.Errorf("%s", cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
 			}
 
 			if err != nil {
@@ -1630,7 +1630,7 @@ func TestGitHubWorkflowRunDownload(t *testing.T) {
 
 			_, err = validateGitHubWorkflowIsFreeOfInsecureDownloads(p, content, &r)
 			if !errCmp(err, tt.err) {
-				t.Errorf(cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
+				t.Errorf("%s", cmp.Diff(err, tt.err, cmpopts.EquateErrors()))
 			}
 
 			if err != nil {

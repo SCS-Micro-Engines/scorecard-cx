@@ -45,6 +45,7 @@
          "results": [
             {
                "ruleId": "CheckNameID",
+               "kind": "fail",
                "ruleIndex": 0,
                "message": {
                   "text": "score is 0: warn message\nClick Remediation section below to solve this issue"
