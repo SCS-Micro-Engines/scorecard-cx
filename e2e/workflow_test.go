@@ -52,7 +52,7 @@ var _ = Describe("E2E TEST:WorkflowRun", func() {
 		})
 		// TODO: remove the Skip and update the e2e test
 		It("Should should fail the workflow file doesn't exist", func() {
-			Skip("Skipping due to GitHub API behavior change for non-existing workflow files")
+			Skip("Skipping due to GitHub API behavior change for non-existing workflow files") //nolint:typecheck
 			// using the scorecard repo as an example. The tests repo workflow won't have any runs in the future and
 			// that is why we are using the scorecard repo.
 			repo, err := githubrepo.MakeGithubRepo("ossf/scorecard")
