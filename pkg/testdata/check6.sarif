@@ -45,6 +45,7 @@
          "results": [
             {
                "ruleId": "CheckNameID",
+               "kind": "fail",
                "ruleIndex": 0,
                "message": {
                   "text": "score is 6: six score reason:\nWarn: warn message: https://domain.com/something\nClick Remediation section below to solve this issue"

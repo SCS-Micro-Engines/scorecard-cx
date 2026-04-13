@@ -17,6 +17,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -55,7 +56,7 @@ func scriptHandler(w http.ResponseWriter, r *http.Request) {
 				http.StatusBadRequest)
 			return
 		}
-		authn, err := google.NewEnvAuthenticator()
+		authn, err := google.NewEnvAuthenticator(context.Background())
 		if err != nil {
 			http.Error(w, fmt.Sprintf("error in NewEnvAuthenticator: %v", err), http.StatusInternalServerError)
 			return

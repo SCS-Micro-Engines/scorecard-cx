@@ -42,7 +42,29 @@
                ]
             }
          },
-         "results": []
+         "results": [
+            {
+               "ruleId": "CheckNameID",
+               "kind": "pass",
+               "ruleIndex": 0,
+               "message": {
+                  "text": "score is 6: six score reason:\nWarn: warn message: src/file1.cpp:5\nClick Remediation section below to solve this issue"
+               },
+               "locations": [
+                  {
+                     "physicalLocation": {
+                        "region": {
+                           "startLine": 1
+                        },
+                        "artifactLocation": {
+                           "uri": "no file associated with this alert",
+                           "uriBaseId": "%SRCROOT%"
+                        }
+                     }
+                  }
+               ]
+            }
+         ]
       }
    ]
 }
