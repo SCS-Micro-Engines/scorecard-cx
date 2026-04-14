@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CGO_ENABLED: "0"
-      GH_TOKEN: ${{ secrets.GH_AUTOFIX_TOKEN }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
     steps:
       - name: Checkout (branch that triggered the run)
         uses: actions/checkout@v4
