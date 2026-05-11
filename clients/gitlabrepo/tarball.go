@@ -43,6 +43,7 @@ var (
 	errTarballNotFound  = errors.New("tarball not found")
 	errTarballCorrupted = errors.New("corrupted tarball")
 	errZipSlip          = errors.New("ZipSlip path detected")
+	errPathTraversal    = errors.New("path escapes tempDir")
 )
 
 func extractAndValidateArchivePath(path, dest string) (string, error) {
@@ -296,7 +297,12 @@ func (handler *tarballHandler) getFileContent(filename string) ([]byte, error) {
 	if err := handler.setup(); err != nil {
 		return nil, fmt.Errorf("error during tarballHandler.setup: %w", err)
 	}
-	content, err := os.ReadFile(filepath.Join(handler.tempDir, filename))
+	fullPath := filepath.Join(handler.tempDir, filename)
+	cleanBase := filepath.Clean(handler.tempDir) + string(os.PathSeparator)
+	if !strings.HasPrefix(filepath.Clean(fullPath), cleanBase) {
+		return nil, fmt.Errorf("%w: %s", errPathTraversal, filename)
+	}
+	content, err := os.ReadFile(fullPath)
 	if err != nil {
 		return content, fmt.Errorf("os.ReadFile: %w", err)
 	}

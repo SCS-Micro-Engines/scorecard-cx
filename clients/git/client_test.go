@@ -15,6 +15,8 @@
 package git
 
 import (
+	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -144,6 +146,141 @@ func TestListCommits(t *testing.T) {
 	// Assert
 	if len(commits) != expectedLen {
 		t.Errorf("ListCommits() returned %d commits, want %d", len(commits), expectedLen)
+	}
+}
+
+// stubRepo bypasses localdir.MakeLocalDirRepo's own validation so we can
+// directly exercise the file:// URI checks in Client.InitRepo.
+type stubRepo struct{ uri string }
+
+func (s *stubRepo) URI() string              { return s.uri }
+func (s *stubRepo) String() string           { return s.uri }
+func (s *stubRepo) Host() string             { return "" }
+func (s *stubRepo) IsValid() error           { return nil }
+func (s *stubRepo) Metadata() []string       { return nil }
+func (s *stubRepo) AppendMetadata(...string) {}
+
+var _ clients.Repo = (*stubRepo)(nil)
+
+func TestInitRepo_FileURI_Validation(t *testing.T) {
+	t.Parallel()
+
+	goodDir, err := os.MkdirTemp("", "scorecard-good-*")
+	if err != nil {
+		t.Fatalf("MkdirTemp: %v", err)
+	}
+	t.Cleanup(func() { os.RemoveAll(goodDir) })
+
+	tmpFile, err := os.CreateTemp("", "not-a-dir-*")
+	if err != nil {
+		t.Fatalf("CreateTemp: %v", err)
+	}
+	tmpFile.Close()
+	t.Cleanup(func() { os.Remove(tmpFile.Name()) })
+
+	cases := []struct {
+		name    string
+		uri     string
+		wantErr bool
+	}{
+		{
+			name:    "relative path rejected",
+			uri:     "file://../etc",
+			wantErr: true,
+		},
+		{
+			name:    "path with .. segment rejected (not clean)",
+			uri:     "file://" + goodDir + string(os.PathSeparator) + ".." + string(os.PathSeparator) + "etc",
+			wantErr: true,
+		},
+		{
+			name:    "current-dir prefix rejected (not clean)",
+			uri:     "file://." + string(os.PathSeparator) + "foo",
+			wantErr: true,
+		},
+		{
+			name:    "empty path rejected",
+			uri:     "file://",
+			wantErr: true,
+		},
+		{
+			name:    "non-existent absolute path rejected",
+			uri:     "file://" + goodDir + string(os.PathSeparator) + "does-not-exist-xyz",
+			wantErr: true,
+		},
+		{
+			name:    "file (not directory) rejected",
+			uri:     "file://" + tmpFile.Name(),
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			client := &Client{}
+			gotErr := client.InitRepo(&stubRepo{uri: tc.uri}, "HEAD", 1)
+			if (gotErr != nil) != tc.wantErr {
+				t.Errorf("InitRepo(%s) err = %v, wantErr = %v", tc.uri, gotErr, tc.wantErr)
+			}
+			if tc.wantErr && !errors.Is(gotErr, errInvalidFileURI) {
+				t.Errorf("InitRepo(%s) err = %v, want errInvalidFileURI", tc.uri, gotErr)
+			}
+		})
+	}
+}
+
+func TestGetFileContent_PathTraversal(t *testing.T) {
+	t.Parallel()
+
+	tempDir, err := os.MkdirTemp("", "scorecard-traversal-*")
+	if err != nil {
+		t.Fatalf("MkdirTemp: %v", err)
+	}
+	t.Cleanup(func() { os.RemoveAll(tempDir) })
+
+	c := &Client{tempDir: tempDir}
+
+	for _, name := range []string{
+		"../etc/passwd",
+		"../../etc/passwd",
+		"foo/../../bar",
+		"sub/dir/../../../escape",
+	} {
+		_, err := c.GetFileContent(name)
+		if !errors.Is(err, errPathTraversal) {
+			t.Errorf("GetFileContent(%q) = err %v, want errPathTraversal", name, err)
+		}
+	}
+}
+
+func TestGetFileContent_ValidPaths(t *testing.T) {
+	t.Parallel()
+
+	tempDir, err := os.MkdirTemp("", "scorecard-good-*")
+	if err != nil {
+		t.Fatalf("MkdirTemp: %v", err)
+	}
+	t.Cleanup(func() { os.RemoveAll(tempDir) })
+
+	if err := os.WriteFile(filepath.Join(tempDir, "ok.txt"), []byte("ok"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	c := &Client{tempDir: tempDir}
+
+	// Normal read.
+	got, err := c.GetFileContent("ok.txt")
+	if err != nil {
+		t.Fatalf("GetFileContent unexpected err: %v", err)
+	}
+	if !bytes.Equal(got, []byte("ok")) {
+		t.Errorf("GetFileContent = %q, want %q", got, "ok")
+	}
+
+	// Path that cleans back inside tempDir must not be rejected.
+	if _, err := c.GetFileContent("dir/../ok.txt"); err != nil {
+		t.Errorf("expected dir/../ok.txt to be accepted; got err: %v", err)
 	}
 }
 

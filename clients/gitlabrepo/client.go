@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/xanzy/go-gitlab"
@@ -28,6 +29,9 @@ import (
 	"github.com/ossf/scorecard/v4/clients"
 	sce "github.com/ossf/scorecard/v4/errors"
 )
+
+// validCommitSHA matches a 7-64 hex-character git SHA (sha1 short to sha256 full).
+var validCommitSHA = regexp.MustCompile(`^[A-Fa-f0-9]{7,64}$`)
 
 var (
 	_                clients.RepoClient = &Client{}
@@ -76,6 +80,10 @@ func (client *Client) InitRepo(inputRepo clients.Repo, commitSHA string, commitD
 	glRepo, ok := inputRepo.(*repoURL)
 	if !ok {
 		return fmt.Errorf("%w: %v", errInputRepoType, inputRepo)
+	}
+
+	if commitSHA != clients.HeadSHA && !validCommitSHA.MatchString(commitSHA) {
+		return sce.WithMessage(sce.ErrorInvalidURL, fmt.Sprintf("invalid commit SHA: %q", commitSHA))
 	}
 
 	// Sanity check.

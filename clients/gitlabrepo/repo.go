@@ -19,12 +19,9 @@ package gitlabrepo
 import (
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"os"
 	"strings"
-
-	"github.com/xanzy/go-gitlab"
 
 	"github.com/ossf/scorecard/v4/clients"
 	sce "github.com/ossf/scorecard/v4/errors"
@@ -123,34 +120,18 @@ func (r *repoURL) IsValid() error {
 		return sce.WithMessage(sce.ErrorInvalidURL, "expected full project url: "+r.URI())
 	}
 
-	if strings.Contains(r.host, "gitlab.") {
-		return nil
-	}
-
 	if strings.EqualFold(r.host, "github.com") {
 		return fmt.Errorf("%w: %s", errInvalidGitlabRepoURL, r.host)
 	}
 
-	// intentionally pass empty token
-	// "When accessed without authentication, only public projects with simple fields are returned."
-	// https://docs.gitlab.com/ee/api/projects.html#list-all-projects
-	client, err := gitlab.NewClient("", gitlab.WithBaseURL(r.Host()))
-	if err != nil {
-		return sce.WithMessage(err,
-			fmt.Sprintf("couldn't create gitlab client for %s", r.host),
-		)
+	allowed := map[string]bool{"gitlab.com": true}
+	if h := strings.TrimSpace(os.Getenv("GL_HOST")); h != "" {
+		if u, err := url.Parse(withDefaultScheme(h)); err == nil && u.Host != "" {
+			allowed[u.Host+strings.TrimRight(u.Path, "/")] = true
+		}
 	}
-
-	_, resp, err := client.Projects.ListProjects(&gitlab.ListProjectsOptions{})
-	if resp == nil || resp.StatusCode != http.StatusOK {
-		return sce.WithMessage(sce.ErrRepoUnreachable,
-			fmt.Sprintf("couldn't reach gitlab instance at %s", r.host),
-		)
-	}
-	if err != nil {
-		return sce.WithMessage(err,
-			fmt.Sprintf("error when connecting to gitlab instance at %s", r.host),
-		)
+	if !allowed[r.host] {
+		return sce.WithMessage(sce.ErrorUnsupportedHost, r.host)
 	}
 
 	return nil
