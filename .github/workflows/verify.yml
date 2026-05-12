@@ -14,6 +14,8 @@
 
 name: PR Verifier
 on:
+  # pull_request_target grants write permissions to fork PRs; this workflow is safe because
+  # it does not check out or execute any code from the pull request.
   pull_request_target:
     types: [opened, edited, reopened]
 permissions: read-all

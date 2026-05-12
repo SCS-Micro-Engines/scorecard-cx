@@ -55,17 +55,17 @@ jobs:
 
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@eb238b55efaa70779f274895e782ed17c84f2895 # v1
+      uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
     - name: Checkout repository
-      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
     # don't use the default version of Go from GitHub runners
     # https://github.com/github/codeql-action/issues/1842#issuecomment-1704398087
     - name: Setup Go
-      uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+      uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
       with:
         go-version: ${{ env.GO_VERSION }}
         check-latest: true
@@ -74,7 +74,7 @@ jobs:
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
 
-      uses: github/codeql-action/init@cdcdbb579706841c47f7063dda365e292e5cad7a # v1
+      uses: github/codeql-action/init@e46ed2cbd01164d986452f91f178727624ae40d7 # v4.35.3
       with:
         languages: ${{ matrix.language }}
         queries: +security-extended
@@ -86,7 +86,7 @@ jobs:
     # Autobuild attempts to build any compiled languages  (C/C++, C#, or Java).
     # If this step fails, then you should remove it and run the build manually (see below)
     - name: Autobuild
-      uses: github/codeql-action/autobuild@cdcdbb579706841c47f7063dda365e292e5cad7a # v1
+      uses: github/codeql-action/autobuild@e46ed2cbd01164d986452f91f178727624ae40d7 # v4.35.3
 
     # ℹ️ Command-line programs to run using the OS shell.
     # 📚 https://git.io/JvXDl
@@ -100,4 +100,4 @@ jobs:
     #   make release
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@cdcdbb579706841c47f7063dda365e292e5cad7a # v1
+      uses: github/codeql-action/analyze@e46ed2cbd01164d986452f91f178727624ae40d7 # v4.35.3
