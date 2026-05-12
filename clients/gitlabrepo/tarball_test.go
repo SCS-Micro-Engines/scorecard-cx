@@ -15,10 +15,12 @@
 package gitlabrepo
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -69,6 +71,73 @@ func setup(inputFile string) (tarballHandler, error) {
 		// here, it won't get executed later when setup() is called.
 	})
 	return tarballHandler, nil
+}
+
+// newPreSetupHandler creates a tarballHandler with tempDir set and once
+// already fired, so getFileContent can be exercised without a real download.
+func newPreSetupHandler(t *testing.T) (tarballHandler, string) {
+	t.Helper()
+	tempDir, err := os.MkdirTemp("", "scorecard-traversal-*")
+	if err != nil {
+		t.Fatalf("MkdirTemp: %v", err)
+	}
+	t.Cleanup(func() { os.RemoveAll(tempDir) })
+	h := tarballHandler{tempDir: tempDir, once: new(sync.Once)}
+	h.once.Do(func() {})
+	return h, tempDir
+}
+
+func TestGetFileContent_PathTraversal(t *testing.T) {
+	t.Parallel()
+	handler, _ := newPreSetupHandler(t)
+	for _, name := range []string{
+		"../etc/passwd",
+		"../../etc/passwd",
+		"../../../etc/passwd",
+		"foo/../../bar",
+		"sub/dir/../../../escape",
+	} {
+		_, err := handler.getFileContent(name)
+		if !errors.Is(err, errPathTraversal) {
+			t.Errorf("getFileContent(%q) = err %v, want errPathTraversal", name, err)
+		}
+	}
+}
+
+func TestGetFileContent_ValidPaths(t *testing.T) {
+	t.Parallel()
+	handler, tempDir := newPreSetupHandler(t)
+
+	if err := os.WriteFile(filepath.Join(tempDir, "hello.txt"), []byte("hello"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	sub := filepath.Join(tempDir, "dir1", "dir2")
+	if err := os.MkdirAll(sub, 0o700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "deep.txt"), []byte("deep"), 0o600); err != nil {
+		t.Fatalf("WriteFile (nested): %v", err)
+	}
+
+	cases := []struct {
+		filename string
+		want     []byte
+	}{
+		{"hello.txt", []byte("hello")},
+		{filepath.Join("dir1", "dir2", "deep.txt"), []byte("deep")},
+		// path that cleans back inside tempDir must not be rejected
+		{"dir1/../hello.txt", []byte("hello")},
+	}
+	for _, tc := range cases {
+		got, err := handler.getFileContent(tc.filename)
+		if err != nil {
+			t.Errorf("getFileContent(%q) unexpected err: %v", tc.filename, err)
+			continue
+		}
+		if !bytes.Equal(got, tc.want) {
+			t.Errorf("getFileContent(%q) = %q, want %q", tc.filename, got, tc.want)
+		}
+	}
 }
 
 //nolint:gocognit

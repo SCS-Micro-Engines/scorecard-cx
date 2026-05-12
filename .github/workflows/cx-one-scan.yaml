@@ -1,0 +1,28 @@
+name: cx-one-scan
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '00 7 * * *' # Every day at 07:00
+
+jobs:
+  cx-one-scan:
+    name: cx-one-scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Checkmarx One GitHub Action
+        uses: checkmarx/ast-github-action@e3f1356c077fcb2ad2062ccc8c9f1631bae59128 # https://github.com/Checkmarx/ast-github-action/releases/tag/2.3.36
+        with:
+          base_uri: ${{ secrets.AST_RND_SCANS_BASE_URI }}
+          cx_tenant: ${{ secrets.AST_RND_SCANS_TENANT }}
+          cx_client_id: ${{ secrets.AST_RND_SCANS_CLIENT_ID }}
+          cx_client_secret: ${{ secrets.AST_RND_SCANS_CLIENT_SECRET }}
+          additional_params: --tags microengines --project-groups sast-and-engines/microengines --threshold "sca-critical=1;sca-high=1;sca-medium=1;sca-low=1;sast-critical=1;sast-high=1;sast-medium=1;sast-low=1;iac-security-critical=1;iac-security-high=1;iac-security-medium=1;iac-security-low=1;api-security-critical=1;api-security-high=1;api-security-medium=1;api-security-low=1;containers-critical=1;containers-high=1;containers-medium=1;containers-low=1;sscs-secret-detection-critical=1;sscs-secret-detection-high=1;sscs-secret-detection-medium=1;sscs-secret-detection-low=1""

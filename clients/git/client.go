@@ -42,6 +42,8 @@ var (
 	errNilCommitFound = errors.New("nil commit found")
 	errEmptyQuery     = errors.New("query is empty")
 	errDefaultBranch  = errors.New("default branch name could not be determined")
+	errPathTraversal  = errors.New("path escapes tempDir")
+	errInvalidFileURI = errors.New("file:// URI must be a clean absolute path to an existing directory")
 )
 
 type Client struct {
@@ -71,7 +73,18 @@ func (c *Client) InitRepo(repo clients.Repo, commitSHA string, commitDepth int) 
 	c.tempDir = tempDir
 	const filePrefix = "file://"
 	if strings.HasPrefix(uri, filePrefix) { //nolint:nestif
-		if err := cp.Copy(strings.TrimPrefix(uri, filePrefix), tempDir); err != nil {
+		srcPath := strings.TrimPrefix(uri, filePrefix)
+		if !filepath.IsAbs(srcPath) || filepath.Clean(srcPath) != srcPath {
+			return fmt.Errorf("%w: %s", errInvalidFileURI, srcPath)
+		}
+		fi, statErr := os.Stat(srcPath)
+		if statErr != nil {
+			return fmt.Errorf("%w: stat %s: %w", errInvalidFileURI, srcPath, statErr)
+		}
+		if !fi.IsDir() {
+			return fmt.Errorf("%w: not a directory: %s", errInvalidFileURI, srcPath)
+		}
+		if err := cp.Copy(srcPath, tempDir); err != nil {
 			return fmt.Errorf("cp.Copy: %w", err)
 		}
 		c.gitRepo, err = git.PlainOpen(tempDir)
@@ -236,10 +249,12 @@ func (c *Client) ListFiles(predicate func(string) (bool, error)) ([]string, erro
 }
 
 func (c *Client) GetFileContent(filename string) ([]byte, error) {
-	// Create the full path of the file
 	fullPath := filepath.Join(c.tempDir, filename)
+	cleanBase := filepath.Clean(c.tempDir) + string(os.PathSeparator)
+	if !strings.HasPrefix(filepath.Clean(fullPath), cleanBase) {
+		return nil, fmt.Errorf("%w: %s", errPathTraversal, filename)
+	}
 
-	// Read the file
 	content, err := os.ReadFile(fullPath)
 	if err != nil {
 		return nil, fmt.Errorf("os.ReadFile: %w", err)

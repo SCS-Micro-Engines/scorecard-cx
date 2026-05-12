@@ -74,7 +74,9 @@ func TestRepoURL_IsValid(t *testing.T) {
 			wantErr:  false,
 		},
 		{
-			name: "valid https address with trailing slash",
+			// Custom gitlab hosts are now rejected unless explicitly
+			// allowlisted via GL_HOST (see TestRepoURL_IsValid_GL_HOST).
+			name: "custom gitlab host rejected without GL_HOST",
 			expected: repoURL{
 				scheme:  "https",
 				host:    "https://gitlab.haskell.org",
@@ -82,7 +84,29 @@ func TestRepoURL_IsValid(t *testing.T) {
 				project: "filepath",
 			},
 			inputURL: "https://gitlab.haskell.org/haskell/filepath",
-			wantErr:  false,
+			wantErr:  true,
+		},
+		{
+			name: "attacker host containing 'gitlab.' rejected",
+			expected: repoURL{
+				scheme:  "https",
+				host:    "https://gitlab.attacker.com",
+				owner:   "owner",
+				project: "proj",
+			},
+			inputURL: "https://gitlab.attacker.com/owner/proj",
+			wantErr:  true,
+		},
+		{
+			name: "fake gitlab host rejected",
+			expected: repoURL{
+				scheme:  "https",
+				host:    "https://fakegitlab.example.com",
+				owner:   "owner",
+				project: "proj",
+			},
+			inputURL: "https://fakegitlab.example.com/owner/proj",
+			wantErr:  true,
 		},
 		{
 			name: "valid hosted gitlab project",
@@ -176,6 +200,60 @@ func TestRepoURL_MakeGitLabRepo(t *testing.T) {
 		if isGitlab != tt.expected {
 			t.Errorf("got %s isgitlab: %t expected %t", tt.repouri, isGitlab, tt.expected)
 		}
+	}
+}
+
+//nolint:paralleltest // uses t.Setenv, can't be parallelized
+func TestRepoURL_IsValid_GL_HOST(t *testing.T) {
+	tests := []struct {
+		name    string
+		glHost  string
+		url     string
+		wantErr bool
+	}{
+		{
+			name:    "GL_HOST allowlists custom gitlab instance",
+			glHost:  "https://gitlab.internal.example",
+			url:     "gitlab.internal.example/owner/proj",
+			wantErr: false,
+		},
+		{
+			name:    "GL_HOST with path component",
+			glHost:  "https://foo.com/gitlab",
+			url:     "foo.com/gitlab/owner/proj",
+			wantErr: false,
+		},
+		{
+			name:    "GL_HOST does not allow other hosts",
+			glHost:  "https://gitlab.internal.example",
+			url:     "gitlab.attacker.com/owner/proj",
+			wantErr: true,
+		},
+		{
+			name:    "GL_HOST does not allow suffix-match hosts",
+			glHost:  "https://gitlab.internal.example",
+			url:     "evil.gitlab.internal.example/owner/proj",
+			wantErr: true,
+		},
+		{
+			name:    "gitlab.com always allowed",
+			glHost:  "https://gitlab.internal.example",
+			url:     "gitlab.com/owner/proj",
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("GL_HOST", tt.glHost)
+			var r repoURL
+			if err := r.parse(tt.url); err != nil {
+				t.Fatalf("parse error: %v", err)
+			}
+			err := r.IsValid()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("IsValid() err = %v, wantErr = %v", err, tt.wantErr)
+			}
+		})
 	}
 }
 
