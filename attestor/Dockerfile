@@ -23,5 +23,6 @@ RUN make build-attestor
 
 FROM gcr.io/google-appengine/debian11@sha256:97dc4fbf18419ef928bcddb865ccf0536d4cc39ae3ace5a2b4273c11aedbea82
 COPY --from=build /src/scorecard/attestor /
+USER 65534
 ENTRYPOINT [ "/scorecard-attestor" ]
 
