@@ -44,6 +44,8 @@ spec:
       - name: github-auth-server
         image: gcr.io/openssf/scorecard-github-server:stable
         imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
         env:
         - name: GITHUB_AUTH_TOKEN
           valueFrom:

@@ -31,6 +31,8 @@ spec:
           image: gcr.io/openssf/scorecard-batch-worker:latest
           args: ["--ignoreRuntimeErrors=true", "--config=/etc/scorecard/config.yaml"]
           imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
           env:
             - name: SCORECARD_DATA_BUCKET_URL
               value: "gs://ossf-scorecard-data-releasetest2"

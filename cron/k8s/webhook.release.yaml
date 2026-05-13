@@ -44,6 +44,8 @@ spec:
       - name: webhook-releasetest
         image: gcr.io/openssf/scorecard-webhook-releasetest:latest
         imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
   strategy:
     type: "RollingUpdate"
     rollingUpdate:

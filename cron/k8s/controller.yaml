@@ -58,6 +58,8 @@ spec:
                 "cron/internal/data/gitlab-projects.csv",
               ]
               imagePullPolicy: Always
+              securityContext:
+                allowPrivilegeEscalation: false
               env:
                 - name: GOMEMLIMIT
                   value: "950MiB"
@@ -72,6 +74,8 @@ spec:
                   readOnly: true
             - name: worker-update
               image: bitnami/kubectl@sha256:44468c0f5b348e6dcf5e11feb6fdcc969c874bba2856150fe50eb1aacb3bdfee
+              securityContext:
+                allowPrivilegeEscalation: false
               command:
                 - "kubectl"
                 - "rollout"

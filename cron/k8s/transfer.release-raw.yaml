@@ -30,6 +30,8 @@ spec:
               image: gcr.io/openssf/scorecard-bq-transfer:latest
               args: ["--config=/etc/scorecard/config.yaml"]
               imagePullPolicy: Always
+              securityContext:
+                allowPrivilegeEscalation: false
               env:
                 - name: SCORECARD_DATA_BUCKET_URL
                   value: "gs://ossf-scorecard-rawdata-releasetest"
